@@ -3,9 +3,8 @@ import '../models/transaction.dart';
 import '../widgets/balance_card.dart';
 import '../widgets/quick_actions.dart';
 import '../widgets/transaction_tile.dart';
-import 'send_money_screen.dart';
 import 'history_screen.dart';
-import 'tap_pay_screen.dart';
+import 'tap_pay_selection_screen.dart';
 import 'profile_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -29,16 +28,9 @@ class HomeScreen extends StatelessWidget {
               const BalanceCard(),
               const SizedBox(height: 24),
               QuickActions(
-                onSend: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const SendMoneyScreen(),
-                  ),
-                ),
-                onReceive: () => _showReceiveSheet(context),
                 onPay: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const TapPayScreen()),
+                  MaterialPageRoute(builder: (_) => const TapPaySelectionScreen()),
                 ),
                 onHistory: () => Navigator.push(
                   context,

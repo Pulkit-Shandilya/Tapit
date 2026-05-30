@@ -1,0 +1,28 @@
+# Core Flask Framework
+Flask
+Werkzeug
+Jinja2
+
+# Database
+Flask-SQLAlchemy
+SQLAlchemy
+
+# CORS & Security
+Flask-CORS
+Flask-JWT-Extended
+PyJWT
+
+# Environment & Configuration
+python-dotenv
+python-decouple
+
+# HTTP & API
+requests
+urllib3
+
+# Testing
+pytest
+pytest-flask
+
+# WSGI Server (for production)
+gunicorn

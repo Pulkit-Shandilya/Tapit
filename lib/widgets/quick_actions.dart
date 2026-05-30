@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 
 class QuickActions extends StatelessWidget {
-  final VoidCallback onSend;
-  final VoidCallback onReceive;
   final VoidCallback onPay;
   final VoidCallback onHistory;
 
   const QuickActions({
     super.key,
-    required this.onSend,
-    required this.onReceive,
     required this.onPay,
     required this.onHistory,
   });
@@ -17,23 +13,11 @@ class QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         _ActionButton(
-          icon: Icons.arrow_upward_rounded,
-          label: 'Send',
-          color: const Color(0xFF6C63FF),
-          onTap: onSend,
-        ),
-        _ActionButton(
-          icon: Icons.arrow_downward_rounded,
-          label: 'Receive',
-          color: const Color(0xFF00BFA5),
-          onTap: onReceive,
-        ),
-        _ActionButton(
           icon: Icons.nfc_rounded,
-          label: 'Tap Pay',
+          label: 'Tap to Pay',
           color: const Color(0xFFFF6B6B),
           onTap: onPay,
         ),

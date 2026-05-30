@@ -23,7 +23,7 @@ def create_user():
         "user_id": "USER001" (optional - auto-generated if not provided)
     }
     
-    Response:
+    Response:l
     {
         "success": true,
         "user": {

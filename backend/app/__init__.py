@@ -55,7 +55,7 @@ def create_app(config_name='development'):
     )
     
     app.register_blueprint(users_routes.users_bp, url_prefix='/api/users')
-    app.register_blueprint(authorization_routes.auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(authorization_routes.authorization_bp, url_prefix='/api/authorization')
     app.register_blueprint(merchants_routes.merchants_bp, url_prefix='/api/merchants')
     app.register_blueprint(payments_routes.payments_bp, url_prefix='/api/payments')
     app.register_blueprint(ledgers_routes.ledgers_bp, url_prefix='/api/ledgers')
