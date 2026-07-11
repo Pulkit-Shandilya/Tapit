@@ -217,7 +217,7 @@ class _TapPayScreenState extends State<TapPayScreen>
     });
 
     final message = NFCMessage(
-      userId: 'demo_receiver',
+      userId: ProfileService.userId,
       action: 'receive',
       amount: null,
       timestamp: DateTime.now().toIso8601String(),

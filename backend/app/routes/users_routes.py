@@ -12,19 +12,19 @@ from app.models.user import User
 
 users_bp = Blueprint('users', __name__)
 
-DEMO_USER_ID = 'demo_user'
-DEMO_RECEIVER_ID = 'demo_receiver'
+PRIMARY_USER_ID = 'user_primary'
+SECONDARY_USER_ID = 'user_secondary'
 
 # In-memory user storage (replace with database in production)
 users_storage = {}
 
 
-def _seed_demo_user(user_id=DEMO_USER_ID):
+def _seed_default_user(user_id=PRIMARY_USER_ID):
     user = User.query.filter_by(user_id=user_id).first()
     if user:
         return user
 
-    if user_id == DEMO_USER_ID:
+    if user_id == PRIMARY_USER_ID:
         first_name = 'Rishabh'
         last_name = 'Parashar'
         email = 'rishabh@tapit.com'
@@ -32,12 +32,12 @@ def _seed_demo_user(user_id=DEMO_USER_ID):
         phone_number = '+91 98765 43210'
         username = 'rishabh'
     else:
-        first_name = 'Demo'
-        last_name = 'Receiver'
-        email = 'receiver@tapit.com'
+        first_name = 'Priya'
+        last_name = 'Sharma'
+        email = 'priya@tapit.com'
         balance = 5000.00
         phone_number = '+91 90000 00000'
-        username = 'receiver'
+        username = 'priya'
 
     user = User(
         user_id=user_id,
@@ -61,8 +61,8 @@ def _seed_demo_user(user_id=DEMO_USER_ID):
 
 def _get_profile_user(user_id):
     user = User.query.filter_by(user_id=user_id).first()
-    if user is None and user_id in {DEMO_USER_ID, DEMO_RECEIVER_ID}:
-        user = _seed_demo_user(user_id)
+    if user is None and user_id in {PRIMARY_USER_ID, SECONDARY_USER_ID}:
+        user = _seed_default_user(user_id)
     return user
 
 

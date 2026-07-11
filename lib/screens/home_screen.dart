@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/transaction.dart';
 import '../widgets/balance_card.dart';
 import '../widgets/quick_actions.dart';
 import '../widgets/transaction_tile.dart';
@@ -7,6 +6,8 @@ import 'history_screen.dart';
 import 'tap_pay_selection_screen.dart';
 import 'profile_screen.dart';
 import '../services/profile_service.dart';
+import '../services/payment_history_service.dart';
+import '../models/transaction.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,16 +17,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  late Future<List<Transaction>> _recentTransactionsFuture;
+
   @override
   void initState() {
     super.initState();
     ProfileService.fetchBalance();
+    _recentTransactionsFuture = PaymentHistoryService.fetchHistory();
   }
 
   @override
   Widget build(BuildContext context) {
-    final recent = mockTransactions.take(3).toList();
-
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F7),
       body: SafeArea(
@@ -70,7 +72,42 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              ...recent.map((tx) => TransactionTile(transaction: tx)),
+              FutureBuilder<List<Transaction>>(
+                future: _recentTransactionsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  if (snapshot.hasError) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'Unable to load recent transactions',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    );
+                  }
+
+                  final recent = (snapshot.data ?? const <Transaction>[]).take(3).toList();
+                  if (recent.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'No transactions yet',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: recent.map((tx) => TransactionTile(transaction: tx)).toList(),
+                  );
+                },
+              ),
               const SizedBox(height: 20),
             ],
           ),

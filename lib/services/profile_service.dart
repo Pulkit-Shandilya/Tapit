@@ -32,7 +32,7 @@ class ProfileData {
   factory ProfileData.fromJson(Map<String, dynamic> json) {
     final profile = json['profile'] as Map<String, dynamic>? ?? json;
     return ProfileData(
-      userId: profile['user_id'] as String? ?? 'demo_user',
+      userId: profile['user_id'] as String? ?? ProfileService.userId,
       firstName: profile['first_name'] as String? ?? 'TapIt',
       lastName: profile['last_name'] as String? ?? 'User',
       age: profile['age'] is int
@@ -82,7 +82,10 @@ class ProfileService {
     defaultValue: 'http://127.0.0.1:5000',
   );
 
-  static const String userId = 'demo_user';
+  static const String userId = String.fromEnvironment(
+    'TAPIT_USER_ID',
+    defaultValue: 'user_primary',
+  );
   static final ValueNotifier<double> balanceNotifier = ValueNotifier<double>(0);
   static bool _balanceLoaded = false;
 
