@@ -3,15 +3,12 @@ User Model
 Represents a user in the NFC payment system with blockchain wallet integration
 """
 
-from flask import request, jsonify
-from flask_sqlalchemy import SQLAlchemy
+from flask import jsonify
 from datetime import datetime
 import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# Initialize SQLAlchemy (should be imported from app/__init__.py in production)
-db = SQLAlchemy()
-database : dict[str,int] = {'1':2,'3':4}
+from app import db
 
 
 class User(db.Model):
@@ -34,6 +31,7 @@ class User(db.Model):
     # Profile Information
     first_name = db.Column(db.String(80))
     last_name = db.Column(db.String(80))
+    age = db.Column(db.Integer)
     phone_number = db.Column(db.String(20))
     profile_picture = db.Column(db.String(255))
     bio = db.Column(db.Text)
@@ -85,6 +83,7 @@ class User(db.Model):
             'email': self.email,
             'first_name': self.first_name,
             'last_name': self.last_name,
+            'age': self.age,
             'phone_number': self.phone_number,
             'profile_picture': self.profile_picture,
             'bio': self.bio,

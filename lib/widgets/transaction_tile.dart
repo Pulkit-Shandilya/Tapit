@@ -8,8 +8,7 @@ class TransactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isSent = transaction.type == TransactionType.sent ||
-        transaction.type == TransactionType.payment;
+    final isSent = transaction.type == TransactionType.sent;
     final color = isSent ? const Color(0xFFFF6B6B) : const Color(0xFF00BFA5);
     final sign = isSent ? '-' : '+';
 
@@ -21,7 +20,7 @@ class TransactionTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -33,7 +32,7 @@ class TransactionTile extends StatelessWidget {
             width: 46,
             height: 46,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(_iconFor(transaction.type), color: color, size: 22),
@@ -87,19 +86,15 @@ class TransactionTile extends StatelessWidget {
         return Icons.arrow_upward_rounded;
       case TransactionType.received:
         return Icons.arrow_downward_rounded;
-      case TransactionType.payment:
-        return Icons.shopping_bag_outlined;
     }
   }
 
   String _typeLabel(TransactionType type) {
     switch (type) {
       case TransactionType.sent:
-        return 'Sent';
+        return 'Sent via NFC';
       case TransactionType.received:
-        return 'Received';
-      case TransactionType.payment:
-        return 'Payment';
+        return 'Received via NFC';
     }
   }
 

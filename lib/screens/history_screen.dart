@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../models/transaction.dart';
+import '../services/payment_history_service.dart';
 import '../widgets/transaction_tile.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -11,25 +13,32 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   int _selectedFilter = 0;
-  final _filters = ['All', 'Sent', 'Received', 'Payments'];
+  late Future<List<Transaction>> _historyFuture;
 
-  List<Transaction> get _filtered {
+  final _filters = ['All', 'Sent', 'Received'];
+
+  @override
+  void initState() {
+    super.initState();
+    _historyFuture = PaymentHistoryService.fetchHistory();
+  }
+
+  Future<List<Transaction>> _filteredHistory() async {
+    final transactions = await _historyFuture;
     switch (_selectedFilter) {
       case 1:
-        return mockTransactions
-            .where((t) => t.type == TransactionType.sent)
-            .toList();
+        return transactions.where((t) => t.type == TransactionType.sent).toList();
       case 2:
-        return mockTransactions
-            .where((t) => t.type == TransactionType.received)
-            .toList();
-      case 3:
-        return mockTransactions
-            .where((t) => t.type == TransactionType.payment)
-            .toList();
+        return transactions.where((t) => t.type == TransactionType.received).toList();
       default:
-        return mockTransactions;
+        return transactions;
     }
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _historyFuture = PaymentHistoryService.fetchHistory();
+    });
   }
 
   @override
@@ -53,19 +62,54 @@ class _HistoryScreenState extends State<HistoryScreen> {
         children: [
           _buildFilterChips(),
           Expanded(
-            child: _filtered.isEmpty
-                ? const Center(
+            child: FutureBuilder<List<Transaction>>(
+              future: _filteredHistory(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Failed to load history: ${snapshot.error}'),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            onPressed: _refresh,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                final transactions = snapshot.data ?? const <Transaction>[];
+
+                if (transactions.isEmpty) {
+                  return const Center(
                     child: Text(
-                      'No transactions',
+                      'No transactions yet',
                       style: TextStyle(color: Colors.grey),
                     ),
-                  )
-                : ListView.builder(
+                  );
+                }
+
+                return RefreshIndicator(
+                  onRefresh: _refresh,
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: _filtered.length,
-                    itemBuilder: (_, i) =>
-                        TransactionTile(transaction: _filtered[i]),
+                    itemCount: transactions.length,
+                    itemBuilder: (_, i) => TransactionTile(transaction: transactions[i]),
                   ),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -79,24 +123,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: _filters.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
           final selected = _selectedFilter == i;
           return GestureDetector(
             onTap: () => setState(() => _selectedFilter = i),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
               decoration: BoxDecoration(
-                color:
-                    selected ? const Color(0xFF6C63FF) : Colors.white,
+                color: selected ? const Color(0xFF6C63FF) : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: selected
                     ? [
                         BoxShadow(
-                          color:
-                              const Color(0xFF6C63FF).withOpacity(0.3),
+                          color: const Color(0xFF6C63FF).withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         )

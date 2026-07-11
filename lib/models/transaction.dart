@@ -1,4 +1,4 @@
-enum TransactionType { sent, received, payment }
+enum TransactionType { sent, received }
 
 class Transaction {
   final String id;
@@ -21,48 +21,18 @@ class Transaction {
 final List<Transaction> mockTransactions = [
   Transaction(
     id: '1',
-    name: 'Swiggy',
-    amount: 349.00,
-    type: TransactionType.payment,
-    date: DateTime.now().subtract(const Duration(hours: 2)),
-    note: 'Lunch order',
-  ),
-  Transaction(
-    id: '2',
     name: 'Priya Sharma',
     amount: 2500.00,
     type: TransactionType.received,
     date: DateTime.now().subtract(const Duration(hours: 5)),
-    note: 'Dinner split',
+    note: 'NFC Payment',
   ),
   Transaction(
-    id: '3',
-    name: 'Netflix India',
-    amount: 649.00,
-    type: TransactionType.payment,
-    date: DateTime.now().subtract(const Duration(days: 1)),
-  ),
-  Transaction(
-    id: '4',
+    id: '2',
     name: 'Rahul Verma',
     amount: 1200.00,
     type: TransactionType.sent,
     date: DateTime.now().subtract(const Duration(days: 1)),
-    note: 'Movie tickets',
-  ),
-  Transaction(
-    id: '5',
-    name: 'Flipkart',
-    amount: 3499.00,
-    type: TransactionType.payment,
-    date: DateTime.now().subtract(const Duration(days: 2)),
-  ),
-  Transaction(
-    id: '6',
-    name: 'Anjali Singh',
-    amount: 8000.00,
-    type: TransactionType.received,
-    date: DateTime.now().subtract(const Duration(days: 3)),
-    note: 'Rent share',
+    note: 'NFC Payment',
   ),
 ];

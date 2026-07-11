@@ -1,9 +1,12 @@
-import 'package:nfc_manager/nfc_manager.dart';
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 class NFCService {
   static final NFCService _instance = NFCService._internal();
+  static const MethodChannel _channel = MethodChannel('tapit/nfc');
 
   factory NFCService() {
     return _instance;
@@ -15,98 +18,83 @@ class NFCService {
       StreamController<NFCMessage>.broadcast();
 
   Stream<NFCMessage> get messageStream => _messageController.stream;
+  bool _isSessionActive = false;
 
   Future<bool> isNFCAvailable() async {
-    return await NfcManager.instance.isAvailable();
-  }
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return false;
+    }
 
-  /// Start listening for NFC tags (Receive mode)
-  Future<void> startListening({
-    required Function(NFCMessage) onMessageReceived,
-    required Function(String) onError,
-  }) async {
     try {
-      NfcManager.instance.startSession(
-        onDiscovered: (NfcTag tag) async {
-          try {
-            // Get NDEF records from the tag
-            final Ndef? ndef = Ndef.from(tag);
-            if (ndef != null && ndef.cachedMessage != null) {
-              final message = ndef.cachedMessage!;
-              final payload = _parseNDEFMessage(message);
-              onMessageReceived(payload);
-            }
-          } catch (e) {
-            onError('Error reading NFC tag: $e');
-          }
-        },
-      );
-    } catch (e) {
-      onError('Failed to start NFC session: $e');
+      return await _channel.invokeMethod<bool>('isAvailable') ?? false;
+    } catch (_) {
+      return false;
     }
   }
 
-  /// Write NFC message to a tag (Pay mode)
-  Future<void> writeNFCMessage(NFCMessage message) async {
+  Future<void> preparePeerReceive(NFCMessage message) async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      throw Exception('Peer NFC is only available on Android');
+    }
+
     try {
-      NfcManager.instance.startSession(
-        onDiscovered: (NfcTag tag) async {
-          try {
-            final Ndef? ndef = Ndef.from(tag);
-            if (ndef != null && ndef.isWritable) {
-              final ndefMessage = _createNDEFMessage(message);
-              await ndef.write(ndefMessage);
-              await NfcManager.instance.stopSession();
-            } else {
-              throw Exception('Tag is not writable');
-            }
-          } catch (e) {
-            await NfcManager.instance.stopSession();
-            rethrow;
-          }
-        },
-      );
+      final payload = jsonEncode(message.toJson());
+      await _channel.invokeMethod('setPeerPayload', {'payload': payload});
+      _messageController.add(message);
     } catch (e) {
-      throw Exception('Failed to write NFC message: $e');
+      throw Exception('Failed to prepare peer NFC payload: ${e.toString()}');
     }
   }
 
-  /// Stop NFC session
+  Future<NFCMessage> readPeerMessage() async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      throw Exception('Peer NFC is only available on Android');
+    }
+
+    try {
+      if (_isSessionActive) {
+        throw Exception('NFC session already active');
+      }
+
+      _isSessionActive = true;
+      final String? payload = await _channel.invokeMethod<String>('startPeerRead');
+      if (payload == null || payload.isEmpty) {
+        throw Exception('No NFC payload received');
+      }
+
+      final decoded = jsonDecode(payload) as Map<String, dynamic>;
+      final message = NFCMessage.fromJson(decoded);
+      _messageController.add(message);
+      return message;
+    } catch (e) {
+      throw Exception('Failed to read peer NFC message: ${e.toString()}');
+    } finally {
+      _isSessionActive = false;
+    }
+  }
+
   Future<void> stopSession() async {
     try {
-      await NfcManager.instance.stopSession();
-    } catch (e) {
-      // Session might already be stopped
-    }
-  }
-
-  /// Parse NDEF message to extract data
-  NFCMessage _parseNDEFMessage(NdefMessage message) {
-    for (var record in message.records) {
-      if (record.typeNameFormat == NdefTypeNameFormat.media &&
-          record.type == utf8.encode('application/tapit')) {
-        final payload = utf8.decode(record.payload);
-        return NFCMessage.fromJson(jsonDecode(payload));
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await _channel.invokeMethod('stopPeerRead');
       }
+    } catch (_) {
+      // Ignore cleanup errors.
+    } finally {
+      _isSessionActive = false;
     }
-    throw Exception('No valid TapIt NDEF record found');
   }
 
-  /// Create NDEF message from NFCMessage
-  NdefMessage _createNDEFMessage(NFCMessage message) {
-    final record = NdefRecord(
-      typeNameFormat: NdefTypeNameFormat.media,
-      type: utf8.encode('application/tapit'),
-      identifier: utf8.encode('tapit_payment'),
-      payload: utf8.encode(jsonEncode(message.toJson())),
-    );
-    return NdefMessage([record]);
+  void dispose() {
+    if (!_messageController.isClosed) {
+      _messageController.close();
+    }
   }
 }
 
 class NFCMessage {
   final String userId;
-  final String action; // 'pay' or 'receive'
+  final String action;
   final double? amount;
   final String timestamp;
 
@@ -119,11 +107,12 @@ class NFCMessage {
 
   factory NFCMessage.fromJson(Map<String, dynamic> json) {
     return NFCMessage(
-      userId: json['userId'] as String,
-      action: json['action'] as String,
+      userId: json['userId'] as String? ?? 'unknown',
+      action: json['action'] as String? ?? 'unknown',
       amount:
           json['amount'] != null ? (json['amount'] as num).toDouble() : null,
-      timestamp: json['timestamp'] as String,
+      timestamp:
+          json['timestamp'] as String? ?? DateTime.now().toIso8601String(),
     );
   }
 

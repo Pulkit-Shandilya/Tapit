@@ -7,10 +7,63 @@ from flask import Blueprint, request, jsonify
 import uuid
 import secrets
 
+from app import db
+from app.models.user import User
+
 users_bp = Blueprint('users', __name__)
+
+DEMO_USER_ID = 'demo_user'
+DEMO_RECEIVER_ID = 'demo_receiver'
 
 # In-memory user storage (replace with database in production)
 users_storage = {}
+
+
+def _seed_demo_user(user_id=DEMO_USER_ID):
+    user = User.query.filter_by(user_id=user_id).first()
+    if user:
+        return user
+
+    if user_id == DEMO_USER_ID:
+        first_name = 'Rishabh'
+        last_name = 'Parashar'
+        email = 'rishabh@tapit.com'
+        balance = 245850.00
+        phone_number = '+91 98765 43210'
+        username = 'rishabh'
+    else:
+        first_name = 'Demo'
+        last_name = 'Receiver'
+        email = 'receiver@tapit.com'
+        balance = 5000.00
+        phone_number = '+91 90000 00000'
+        username = 'receiver'
+
+    user = User(
+        user_id=user_id,
+        username=username,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        age=24,
+        phone_number=phone_number,
+        blockchain_wallet=f'0x{secrets.token_hex(20)}',
+        wallet_balance=balance,
+        nfc_card_id='tapit-demo-card',
+        nfc_card_linked=True,
+        is_verified=True,
+    )
+    user.set_password('tapit-demo-password')
+    db.session.add(user)
+    db.session.commit()
+    return user
+
+
+def _get_profile_user(user_id):
+    user = User.query.filter_by(user_id=user_id).first()
+    if user is None and user_id in {DEMO_USER_ID, DEMO_RECEIVER_ID}:
+        user = _seed_demo_user(user_id)
+    return user
 
 
 @users_bp.route('/create', methods=['POST'])
@@ -63,6 +116,68 @@ def create_user():
             'user': user
         }), 201
     
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@users_bp.route('/profile/<user_id>', methods=['GET'])
+def get_profile(user_id):
+    try:
+        user = _get_profile_user(user_id)
+        if not user:
+            return jsonify({'error': f'User {user_id} not found'}), 404
+
+        return jsonify({
+            'success': True,
+            'profile': user.to_dict(),
+            'balance': user.wallet_balance,
+            'balance_locked': True,
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@users_bp.route('/profile/<user_id>', methods=['PUT'])
+def update_profile(user_id):
+    try:
+        user = _get_profile_user(user_id)
+        if not user:
+            return jsonify({'error': f'User {user_id} not found'}), 404
+
+        data = request.get_json() or {}
+
+        for field in ['first_name', 'last_name', 'age', 'phone_number', 'email']:
+            if field in data:
+                setattr(user, field, data[field])
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Profile updated successfully',
+            'profile': user.to_dict(),
+            'balance': user.wallet_balance,
+            'balance_locked': True,
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@users_bp.route('/profile/<user_id>/balance', methods=['GET'])
+def get_balance(user_id):
+    try:
+        user = _get_profile_user(user_id)
+        if not user:
+            return jsonify({'error': f'User {user_id} not found'}), 404
+
+        return jsonify({
+            'success': True,
+            'user_id': user.user_id,
+            'balance': user.wallet_balance,
+            'currency': 'INR',
+            'locked': True,
+        }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

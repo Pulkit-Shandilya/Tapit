@@ -1,268 +1,352 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-class ProfileScreen extends StatelessWidget {
+import '../services/profile_service.dart';
+import '../theme_controller.dart';
+
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  late Future<ProfileData> _profileFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _profileFuture = ProfileService.fetchProfile();
+  }
+
+  Future<void> _refreshProfile() async {
+    setState(() {
+      _profileFuture = ProfileService.fetchProfile();
+    });
+  }
+
+  void _openEditProfile(ProfileData profile) {
+    final firstNameController = TextEditingController(text: profile.firstName);
+    final lastNameController = TextEditingController(text: profile.lastName);
+    final ageController = TextEditingController(text: profile.age?.toString() ?? '');
+    final phoneController = TextEditingController(text: profile.phoneNumber);
+    final emailController = TextEditingController(text: profile.email);
+    final formKey = GlobalKey<FormState>();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Edit Profile',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildField(firstNameController, 'First name'),
+                  _buildField(lastNameController, 'Last name'),
+                  _buildField(ageController, 'Age', keyboardType: TextInputType.number),
+                  _buildField(phoneController, 'Phone number', keyboardType: TextInputType.phone),
+                  _buildField(emailController, 'Email', keyboardType: TextInputType.emailAddress),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        if (!(formKey.currentState?.validate() ?? false)) {
+                          return;
+                        }
+
+                        try {
+                          final updated = await ProfileService.updateProfile(
+                            ProfileUpdateRequest(
+                              firstName: firstNameController.text.trim(),
+                              lastName: lastNameController.text.trim(),
+                              age: int.tryParse(ageController.text.trim()),
+                              phoneNumber: phoneController.text.trim(),
+                              email: emailController.text.trim(),
+                            ),
+                          );
+
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Profile updated')),
+                          );
+
+                          setState(() {
+                            _profileFuture = Future.value(updated);
+                          });
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Update failed: $e')),
+                          );
+                        }
+                      },
+                      child: const Text('Save Changes'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showPersonalDetails(ProfileData profile) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Personal Details',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              _detailRow('Name', profile.displayName),
+              _detailRow('Age', profile.age?.toString() ?? '-'),
+              _detailRow('Phone', profile.phoneNumber),
+              _detailRow('Email', profile.email),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _openEditProfile(profile);
+                  },
+                  child: const Text('Edit Profile'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAppearanceSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: ValueListenableBuilder<ThemeMode>(
+            valueListenable: appThemeMode,
+            builder: (context, mode, _) {
+              final isLight = mode == ThemeMode.light;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Appearance',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    onTap: () => appThemeMode.value = ThemeMode.light,
+                    title: const Text('Light'),
+                    trailing: isLight ? const Icon(Icons.check, color: Color(0xFF6C63FF)) : null,
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    onTap: () => appThemeMode.value = ThemeMode.dark,
+                    title: const Text('Dark'),
+                    trailing: !isLight ? const Icon(Icons.check, color: Color(0xFF6C63FF)) : null,
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F7),
-      body: CustomScrollView(
-        slivers: [
-          _buildSliverAppBar(context),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  const SizedBox(height: 20),
-                  _buildUpiCard(context),
-                  const SizedBox(height: 24),
-                  _buildSection('Account', [
-                    _SettingsTile(
-                      icon: Icons.person_outline_rounded,
-                      label: 'Personal Details',
-                      onTap: () {},
-                    ),
-                    _SettingsTile(
-                      icon: Icons.account_balance_outlined,
-                      label: 'Linked Bank Accounts',
-                      trailing: '2 linked',
-                      onTap: () {},
-                    ),
-                    _SettingsTile(
-                      icon: Icons.credit_card_rounded,
-                      label: 'Linked Cards',
-                      trailing: '1 card',
-                      onTap: () {},
-                    ),
-                  ]),
-                  const SizedBox(height: 16),
-                  _buildSection('Preferences', [
-                    _SettingsTile(
-                      icon: Icons.notifications_outlined,
-                      label: 'Notifications',
-                      onTap: () {},
-                    ),
-                    _SettingsTile(
-                      icon: Icons.language_rounded,
-                      label: 'Language',
-                      trailing: 'English',
-                      onTap: () {},
-                    ),
-                    _SettingsTile(
-                      icon: Icons.dark_mode_outlined,
-                      label: 'Appearance',
-                      trailing: 'Light',
-                      onTap: () {},
-                    ),
-                  ]),
-                  const SizedBox(height: 16),
-                  _buildSection('Security', [
-                    _SettingsTile(
-                      icon: Icons.lock_outline_rounded,
-                      label: 'Change PIN',
-                      onTap: () {},
-                    ),
-                    _SettingsTile(
-                      icon: Icons.fingerprint_rounded,
-                      label: 'Biometric Login',
-                      trailing: 'On',
-                      onTap: () {},
-                    ),
-                    _SettingsTile(
-                      icon: Icons.devices_rounded,
-                      label: 'Manage Devices',
-                      onTap: () {},
-                    ),
-                  ]),
-                  const SizedBox(height: 16),
-                  _buildSection('Support', [
-                    _SettingsTile(
-                      icon: Icons.help_outline_rounded,
-                      label: 'Help & FAQ',
-                      onTap: () {},
-                    ),
-                    _SettingsTile(
-                      icon: Icons.privacy_tip_outlined,
-                      label: 'Privacy Policy',
-                      onTap: () {},
-                    ),
-                    _SettingsTile(
-                      icon: Icons.info_outline_rounded,
-                      label: 'About TapIt',
-                      trailing: 'v1.0.0',
-                      onTap: () {},
-                    ),
-                  ]),
-                  const SizedBox(height: 20),
-                  _buildLogoutButton(context),
-                  const SizedBox(height: 32),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: FutureBuilder<ProfileData>(
+        future: _profileFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-  Widget _buildSliverAppBar(BuildContext context) {
-    return SliverAppBar(
-      expandedHeight: 220,
-      pinned: true,
-      backgroundColor: const Color(0xFF6C63FF),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-        onPressed: () => Navigator.pop(context),
-      ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.edit_outlined, color: Colors.white),
-          onPressed: () {},
-        ),
-      ],
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF6C63FF), Color(0xFF3D35C2)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 40),
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 48,
-                    backgroundColor: Colors.white.withOpacity(0.2),
-                    child: const Text(
-                      'R',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                      ),
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Failed to load profile: ${snapshot.error}'),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _refreshProfile,
+                      child: const Text('Retry'),
                     ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt_rounded,
-                        size: 16,
-                        color: Color(0xFF6C63FF),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Rishabh Parashar',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
-              const Text(
-                '+91 98765 43210',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+            );
+          }
+
+          final profile = snapshot.data!;
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 240,
+                pinned: true,
+                backgroundColor: const Color(0xFF6C63FF),
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, color: Colors.white),
+                    onPressed: () => _openEditProfile(profile),
+                  ),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF6C63FF), Color(0xFF3D35C2)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 36),
+                        CircleAvatar(
+                          radius: 48,
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          child: Text(
+                            profile.firstName.isNotEmpty ? profile.firstName[0].toUpperCase() : 'T',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 40,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          profile.displayName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          profile.email,
+                          style: const TextStyle(color: Colors.white70, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _profileSummary(profile, isDark),
+                      const SizedBox(height: 24),
+                      _SettingsTile(
+                        icon: Icons.person_outline_rounded,
+                        label: 'Personal Details',
+                        trailing: 'Name, age, phone, email',
+                        onTap: () => _showPersonalDetails(profile),
+                      ),
+                      const SizedBox(height: 12),
+                      _SettingsTile(
+                        icon: Icons.dark_mode_outlined,
+                        label: 'Appearance',
+                        trailing: appThemeMode.value == ThemeMode.dark ? 'Dark' : 'Light',
+                        onTap: _showAppearanceSheet,
+                      ),
+                      const SizedBox(height: 24),
+                      _buildBalanceLockNote(profile),
+                    ],
+                  ),
+                ),
               ),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildUpiCard(BuildContext context) {
-    const upiId = 'rishabh@tapit';
+  Widget _profileSummary(ProfileData profile, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: isDark ? const Color(0xFF181B20) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.account_balance_wallet_outlined,
-              color: Color(0xFF6C63FF),
-            ),
-          ),
-          const SizedBox(width: 14),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'UPI ID',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-              SizedBox(height: 2),
-              Text(
-                upiId,
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-              ),
-            ],
-          ),
-          const Spacer(),
-          GestureDetector(
-            onTap: () {
-              Clipboard.setData(const ClipboardData(text: upiId));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('UPI ID copied!'),
-                  behavior: SnackBarBehavior.floating,
-                  backgroundColor: const Color(0xFF6C63FF),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              );
-            },
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF6C63FF).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'Copy',
-                style: TextStyle(
-                  color: Color(0xFF6C63FF),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
+          const Icon(Icons.lock_outline_rounded, color: Color(0xFF6C63FF)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Account balance is stored in the database and cannot be changed from the profile screen.',
+              style: TextStyle(
+                color: isDark ? Colors.white70 : Colors.grey[700],
+                fontSize: 13,
               ),
             ),
           ),
@@ -271,95 +355,61 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSection(String title, List<Widget> tiles) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 10),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-              color: Colors.grey,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            children: List.generate(tiles.length, (i) {
-              return Column(
-                children: [
-                  tiles[i],
-                  if (i < tiles.length - 1)
-                    const Divider(height: 1, indent: 56),
-                ],
-              );
-            }),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLogoutButton(BuildContext context) {
-    return SizedBox(
+  Widget _buildBalanceLockNote(ProfileData profile) {
+    return Container(
       width: double.infinity,
-      height: 52,
-      child: OutlinedButton.icon(
-        onPressed: () => _showLogoutDialog(context),
-        icon: const Icon(Icons.logout_rounded, color: Colors.red),
-        label: const Text(
-          'Log Out',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-        ),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Colors.red),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF6C63FF).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Text(
+        'Database balance: ₹${profile.balance.toStringAsFixed(2)}. This is locked and read-only.',
+        style: const TextStyle(fontWeight: FontWeight.w600),
       ),
     );
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Log Out?'),
-        content: const Text('Are you sure you want to log out of TapIt?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            child: const Text('Log Out'),
           ),
+          Expanded(child: Text(value.isEmpty ? '-' : value)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildField(
+    TextEditingController controller,
+    String label, {
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(labelText: label),
+        validator: (value) {
+          if (label == 'Age') {
+            if (value != null && value.isNotEmpty && int.tryParse(value) == null) {
+              return 'Enter a valid age';
+            }
+          } else if (value == null || value.trim().isEmpty) {
+            return 'Required';
+          }
+          return null;
+        },
       ),
     );
   }
@@ -386,7 +436,7 @@ class _SettingsTile extends StatelessWidget {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: const Color(0xFF6C63FF).withOpacity(0.1),
+          color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, color: const Color(0xFF6C63FF), size: 20),

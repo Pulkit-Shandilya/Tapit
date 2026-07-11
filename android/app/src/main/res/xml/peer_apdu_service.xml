@@ -1,0 +1,11 @@
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="Tapit peer NFC"
+    android:requireDeviceUnlock="false">
+
+    <aid-group
+        android:category="other"
+        android:description="Tapit peer NFC">
+        <aid-filter android:name="F00102030405" />
+    </aid-group>
+
+</host-apdu-service>

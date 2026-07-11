@@ -4,6 +4,9 @@ Handles payment transaction processing through the payment flow
 """
 
 from flask import Blueprint, request, jsonify
+from app import db
+from app.models.user import User
+from app.models.payment import Payment
 from app.routes.users_routes import users_storage
 from app.routes.merchants_routes import merchants_storage
 import uuid
@@ -14,6 +17,13 @@ payments_bp = Blueprint('payments', __name__)
 
 # In-memory payment storage
 payments_storage = []
+
+
+def _ensure_user(user_id):
+    user = User.query.filter_by(user_id=user_id).first()
+    if user:
+        return user
+    return None
 
 # Smart Contract Configuration
 SMART_CONTRACT_CONFIG = {
@@ -39,6 +49,76 @@ def compute_hash(data):
     """Compute SHA256 hash of transaction data"""
     data_str = str(data)
     return hashlib.sha256(data_str.encode()).hexdigest()
+
+
+@payments_bp.route('/transfer', methods=['POST'])
+def transfer_wallet_balance():
+    """Transfer wallet balance between two database-backed users."""
+    try:
+        data = request.get_json() or {}
+        sender_id = data.get('from_user_id')
+        receiver_id = data.get('to_user_id')
+        amount = float(data.get('amount', 0))
+
+        if not sender_id or not receiver_id:
+            return jsonify({'error': 'from_user_id and to_user_id are required'}), 400
+
+        if sender_id == receiver_id:
+            return jsonify({'error': 'Sender and receiver must be different users'}), 400
+
+        if amount <= 0:
+            return jsonify({'error': 'Amount must be greater than 0'}), 400
+
+        sender = _ensure_user(sender_id)
+        receiver = _ensure_user(receiver_id)
+
+        if sender is None:
+            return jsonify({'error': f'Sender {sender_id} not found'}), 404
+
+        if receiver is None:
+            return jsonify({'error': f'Receiver {receiver_id} not found'}), 404
+
+        if sender.wallet_balance < amount:
+            return jsonify({'error': 'Insufficient balance'}), 400
+
+        sender.wallet_balance -= amount
+        receiver.wallet_balance += amount
+
+        transaction = {
+            'transaction_id': str(uuid.uuid4()),
+            'from_user_id': sender_id,
+            'to_user_id': receiver_id,
+            'amount': amount,
+            'timestamp': datetime.now().isoformat(),
+            'status': 'completed',
+            'flow_type': 'peer_transfer',
+        }
+
+        transaction['block_hash'] = compute_hash(transaction)
+        payments_storage.append(transaction)
+
+        payment_record = Payment(
+            transaction_id=transaction['transaction_id'],
+            from_user_id=sender_id,
+            to_user_id=receiver_id,
+            amount=amount,
+            status='completed',
+            flow_type='peer_transfer',
+            block_hash=transaction['block_hash'],
+        )
+        db.session.add(payment_record)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Transfer completed successfully',
+            'transaction': transaction,
+            'sender_balance': sender.wallet_balance,
+            'receiver_balance': receiver.wallet_balance,
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 @payments_bp.route('/process', methods=['POST'])
@@ -135,6 +215,21 @@ def process_payment():
         # Step 8: Finalize
         transaction['status'] = 'completed'
         payments_storage.append(transaction)
+
+        payment_record = Payment(
+            transaction_id=transaction['transaction_id'],
+            user_id=user_id,
+            merchant_id=merchant_id,
+            amount=amount,
+            status='completed',
+            flow_type='payment',
+            block_hash=transaction['issuing_block_hash'],
+            acquiring_bank_status=transaction['acquiring_bank_status'],
+            issuing_bank_status=transaction['issuing_bank_status'],
+            note='Merchant payment',
+        )
+        db.session.add(payment_record)
+        db.session.commit()
         
         return jsonify({
             'success': True,
@@ -142,6 +237,40 @@ def process_payment():
             'transaction': transaction
         }), 200
     
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@payments_bp.route('/history', methods=['GET'])
+def get_payment_history():
+    """Return persisted payment history from the database."""
+    try:
+        user_id = request.args.get('user_id')
+        status = request.args.get('status')
+        flow_type = request.args.get('flow_type')
+
+        query = Payment.query.order_by(Payment.created_at.desc())
+
+        if user_id:
+            query = query.filter(
+                (Payment.user_id == user_id)
+                | (Payment.from_user_id == user_id)
+                | (Payment.to_user_id == user_id)
+            )
+
+        if status:
+            query = query.filter_by(status=status)
+
+        if flow_type:
+            query = query.filter_by(flow_type=flow_type)
+
+        payments = query.all()
+
+        return jsonify({
+            'success': True,
+            'total_transactions': len(payments),
+            'transactions': [payment.to_dict() for payment in payments],
+        }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
